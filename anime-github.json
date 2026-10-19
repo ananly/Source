@@ -4,7 +4,7 @@
       "key": "anime",
       "name": "紫薇动漫",
       "type": 3,
-      "api": "https://cdn.jsdelivr.net/gh/ananly/Source@0b11f2a/spider.py",
+      "api": "https://cdn.jsdelivr.net/gh/ananly/Source@97bf699/spider.py",
       "searchable": 1,
       "quickSearch": 1,
       "filterable": 0,
