@@ -2,7 +2,7 @@
   "sites": [
     {
       "key": "anime",
-      "name": "专属动漫",
+      "name": "紫薇动漫",
       "type": 3,
       "api": "https://raw.githubusercontent.com/ananly/Source/main/spider.py",
       "searchable": 1,

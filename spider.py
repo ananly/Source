@@ -21,7 +21,7 @@ except Exception:
 
 class Spider(BaseSpider):
     def getName(self):
-        return "专属动漫"
+        return "紫薇动漫"
 
     def init(self, extend=""):
         self.ua = ("Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 "
@@ -459,14 +459,14 @@ class Spider(BaseSpider):
             if site_name in seen_site:
                 continue
             seen_site.add(site_name)
-            if len(to_probe) >= 2:
+            if len(to_probe) >= 4:
                 break
             first_ep = pu.split("#")[0].split("$")[-1]
             to_probe.append((site_name, first_ep))
         if to_probe:
             def _sp(site_name, ep):
                 return site_name, self._probe_speed(site_name, ep)
-            for res in self._parallel(_sp, to_probe, budget=0.8):
+            for res in self._parallel(_sp, to_probe, budget=1.5):
                 if res:
                     speeds[res[0]] = res[1]
         # 排序：广告等级优先（无广告在前），同档内按实测速度从快到慢
@@ -479,6 +479,11 @@ class Spider(BaseSpider):
         for rank, site_name, cn, pu in agg_lines:
             name_count[cn] = name_count.get(cn, 0) + 1
             label = cn if name_count[cn] == 1 else "%s·%d" % (cn, name_count[cn])
+            sp = speeds.get(site_name, 0)
+            if sp >= 400:
+                label = "⚡" + label
+            elif 0 < sp < 200:
+                label = "🐢" + label
             final_from.append(label)
             final_url.append(pu)
 
