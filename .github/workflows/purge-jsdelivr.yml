@@ -1,0 +1,21 @@
+name: Purge jsDelivr Cache
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  purge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Purge CDN cache for all files
+        run: |
+          set -e
+          for f in spider.py anime.json anime-github.json anime-local.json anime-min.json README.md; do
+            echo "== purge $f"
+            curl -s --max-time 30 "https://purge.jsdelivr.net/gh/${{ github.repository }}@main/$f" | head -c 200 || true
+            echo
+            sleep 1
+          done
+          echo "done"
