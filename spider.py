@@ -292,6 +292,46 @@ class Spider(BaseSpider):
         pagecount = 99 if tid != "movie" else 50
         return {"page": page, "pagecount": pagecount, "limit": len(out), "total": pagecount * 40, "list": out}
 
+    # ---------- 线路测速 ----------
+    def _probe_speed(self, site_name, url):
+        """抓该线路首段切片，测 KB/s；结果缓存 10 分钟"""
+        key = "spd:" + site_name
+        c = self.cache.get(key)
+        if c and time.time() - c[0] < 600:
+            return c[1]
+        sp = 0
+        try:
+            r = self.sess.get(url, timeout=3)
+            txt = r.text
+            base = url
+            m = re.search(r'([^\s"\'\n]+\.(?:ts|mp4))', txt)
+            if not m:
+                subs = re.findall(r'RESOLUTION=(\d+x\d+)[^\n]*\n([^\n]+\.m3u8)', txt)
+                if subs:
+                    subs.sort(key=lambda x: -int(x[0].split('x')[0]))
+                    sub = subs[0][1]
+                    if not sub.startswith('http'):
+                        sub = url.rsplit('/', 1)[0] + '/' + sub
+                    txt = self.sess.get(sub, timeout=3).text
+                    base = sub
+                    m = re.search(r'([^\s"\'\n]+\.(?:ts|mp4))', txt)
+            if m:
+                seg = m.group(1)
+                if not seg.startswith('http'):
+                    seg = base.rsplit('/', 1)[0] + '/' + seg.lstrip('/')
+                t0 = time.time()
+                r2 = self.sess.get(seg, headers={"Range": "bytes=0-98304"}, timeout=3, stream=True)
+                got = 0
+                for ch in r2.iter_content(16384):
+                    got += len(ch)
+                    if got >= 98304:
+                        break
+                sp = got / 1024.0 / max(time.time() - t0, 0.001)
+        except Exception:
+            sp = 0
+        self.cache[key] = (time.time(), sp)
+        return sp
+
     # ---------- 详情 ----------
     # 线路质量分（用户实测：无广告站优先，分越低越靠前）
     SITE_RANK = {"量子资源": 0, "360资源": 1, "暴风资源": 2, "最大资源": 3,
@@ -411,8 +451,29 @@ class Spider(BaseSpider):
                     if src_eps <= 3 or ot_eps >= src_eps * 0.8:
                         collect(oname, ot.get("vod_play_from", ""), ot.get("vod_play_url", ""))
                     break
-        # 按线路质量排序（无广告站靠前），重写线路名避免重复
-        agg_lines.sort(key=lambda x: x[0])
+        # 测速：只测前 3 个站的首条线路（有缓存，二次无开销）
+        speeds = {}
+        to_probe = []
+        seen_site = set()
+        for rank, site_name, cn, pu in agg_lines:
+            if site_name in seen_site:
+                continue
+            seen_site.add(site_name)
+            if len(to_probe) >= 2:
+                break
+            first_ep = pu.split("#")[0].split("$")[-1]
+            to_probe.append((site_name, first_ep))
+        if to_probe:
+            def _sp(site_name, ep):
+                return site_name, self._probe_speed(site_name, ep)
+            for res in self._parallel(_sp, to_probe, budget=0.8):
+                if res:
+                    speeds[res[0]] = res[1]
+        # 排序：广告等级优先（无广告在前），同档内按实测速度从快到慢
+        def _sort_key(x):
+            sp = speeds.get(x[1], 0)
+            return (x[0], -sp if sp > 0 else 0)
+        agg_lines.sort(key=_sort_key)
         name_count = {}
         final_from, final_url = [], []
         for rank, site_name, cn, pu in agg_lines:
