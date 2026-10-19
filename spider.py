@@ -110,7 +110,7 @@ class Spider(BaseSpider):
                         continue
         return {}
 
-    def _parallel(self, fn, args_list, budget=2.2):
+    def _parallel(self, fn, args_list, budget=1.6):
         """并发执行，总预算 budget 秒；到点未完成的返回 None 占位"""
         out = [None] * len(args_list)
         ex = None
@@ -126,7 +126,7 @@ class Spider(BaseSpider):
                     out[futs[f]] = None
             # 未完成的再给 0.6s 短等待，仍超时则放弃
             if pending:
-                done2, _ = _wait(pending, timeout=0.6)
+                done2, _ = _wait(pending, timeout=0.3)
                 for f in done2:
                     try:
                         out[futs[f]] = f.result()
@@ -171,11 +171,15 @@ class Spider(BaseSpider):
     # ---------- 分类列表 ----------
     def categoryContent(self, tid, pg, filter, extend):
         page = int(pg or 1)
-        self._warm_apis()
+        # 分类结果缓存 60 秒：来回切分类不用重新请求
+        ck = "cat:%s:%d" % (tid, page)
+        hit = self.cache.get(ck)
+        if hit and time.time() - hit[0] < 60:
+            return hit[1]
         jobs = []
         if tid == "today":
             # 今日追番：8 站 × 日漫/国漫 × 24h。并发足够快，全量拉取
-            for name, bases, t_jp, t_cn, t_us, t_mv in self.sites[:6]:
+            for name, bases, t_jp, t_cn, t_us, t_mv in self.sites[:4]:
                 api = self._api_of(name)
                 if t_jp:
                     jobs.append((name, api, {"ac": "detail", "t": t_jp, "h": 24, "pg": page}))
@@ -290,7 +294,11 @@ class Spider(BaseSpider):
                     break
             self.timeout = 4
         pagecount = 99 if tid != "movie" else 50
-        return {"page": page, "pagecount": pagecount, "limit": len(out), "total": pagecount * 40, "list": out}
+        result = {"page": page, "pagecount": pagecount, "limit": len(out),
+                  "total": pagecount * 40, "list": out}
+        if out:
+            self.cache[ck] = (time.time(), result)
+        return result
 
     # ---------- 线路测速 ----------
     def _probe_speed(self, site_name, url):
@@ -506,7 +514,6 @@ class Spider(BaseSpider):
 
     # ---------- 搜索 ----------
     def searchContent(self, key, quick, pg="1"):
-        self._warm_apis()
         q = self._clean_query(key)
         jobs = [(name, self._api_of(name), {"ac": "detail", "wd": q}) for name, bases, *_ in self.sites]
 
