@@ -1,0 +1,14 @@
+{
+  "sites": [
+    {
+      "key": "anime",
+      "name": "专属动漫",
+      "type": 3,
+      "api": "file:///sdcard/Download/spider.py",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 0,
+      "ext": ""
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "sites": [
+    {
+      "key": "anime",
+      "name": "专属动漫",
+      "type": 3,
+      "api": "https://cdn.jsdelivr.net/gh/ananly/Source@main/spider.py",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 0
+    }
+  ]
+}
